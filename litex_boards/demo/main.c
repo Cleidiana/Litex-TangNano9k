@@ -10,201 +10,55 @@
 #include <libbase/console.h>
 #include <generated/csr.h>
 
-/*-----------------------------------------------------------------------*/
-/* Uart                                                                  */
-/*-----------------------------------------------------------------------*/
+#define CLOCK_FREQUENCY 27000000  // 27 MHz
+volatile uint32_t botao_user = 0;
 
-static char *readstr(void)
+static void teste_exec(void)
 {
-	char c[2];
-	static char s[64];
-	static int ptr = 0;
+	uint32_t i;
+    uint32_t tempo_inicio, tempo_fim;
+    uint64_t ciclos;
+    int segundos;
+    leds_out_write(0x00);
+    puts("\nAperte o botão para iniciar o teste\n");
+    botao_user = gpio_in_read();
+    while(botao_user){
+        botao_user = gpio_in_read();
+    }
+    leds_out_write(0x3F);
+    puts("\nInicio teste\n");
 
-	if(readchar_nonblock()) {
-		c[0] = getchar();
-		c[1] = 0;
-		switch(c[0]) {
-			case 0x7f:
-			case 0x08:
-				if(ptr > 0) {
-					ptr--;
-					fputs("\x08 \x08", stdout);
-				}
-				break;
-			case 0x07:
-				break;
-			case '\r':
-			case '\n':
-				s[ptr] = 0x00;
-				fputs("\n", stdout);
-				ptr = 0;
-				return s;
-			default:
-				if(ptr >= (sizeof(s) - 1))
-					break;
-				fputs(c, stdout);
-				s[ptr] = c[0];
-				ptr++;
-				break;
-		}
-	}
+    timer0_reload_write(0xFFFFFFFF);
+    timer0_load_write(0xFFFFFFFF);
+    timer0_en_write(1);
 
-	return NULL;
-}
+    timer0_update_value_write(1);
+    tempo_inicio = timer0_value_read();
 
-static char *get_token(char **str)
-{
-	char *c, *d;
+    for (i = 0; i < 20000; i++) {
+        printf("%ld ", i); 
+    }
+    timer0_update_value_write(1);
+    tempo_fim = timer0_value_read();
 
-	c = (char *)strchr(*str, ' ');
-	if(c == NULL) {
-		d = *str;
-		*str = *str+strlen(*str);
-		return d;
-	}
-	*c = 0;
-	d = *str;
-	*str = c+1;
-	return d;
-}
+    ciclos = (uint64_t)(tempo_inicio - tempo_fim);  
+    segundos = (ciclos / CLOCK_FREQUENCY);
 
-static void prompt(void)
-{
-	printf("\e[92;1mlitex-demo-app\e[0m> ");
-}
-
-/*-----------------------------------------------------------------------*/
-/* Help                                                                  */
-/*-----------------------------------------------------------------------*/
-
-static void help(void)
-{
-	puts("\nLiteX minimal demo app built "__DATE__" "__TIME__"\n");
-	puts("Available commands:");
-	puts("help               - Show this command");
-	puts("reboot             - Reboot CPU");
-#ifdef CSR_LEDS_BASE
-	puts("led                - Led demo");
-#endif
-	puts("donut              - Spinning Donut demo");
-	puts("helloc             - Hello C");
-#ifdef WITH_CXX
-	puts("hellocpp           - Hello C++");
-#endif
-}
-
-/*-----------------------------------------------------------------------*/
-/* Commands                                                              */
-/*-----------------------------------------------------------------------*/
-
-static void reboot_cmd(void)
-{
-	ctrl_reset_write(1);
-}
-
-#ifdef CSR_LEDS_BASE
-static void led_cmd(void)
-{
-	int i;
-	printf("Led demo...\n");
-
-	printf("Counter mode...\n");
-	for(i=0; i<32; i++) {
-		leds_out_write(i);
-		busy_wait(100);
-	}
-
-	printf("Shift mode...\n");
-	for(i=0; i<4; i++) {
-		leds_out_write(1<<i);
-		busy_wait(200);
-	}
-	for(i=0; i<4; i++) {
-		leds_out_write(1<<(3-i));
-		busy_wait(200);
-	}
-
-	printf("Dance mode...\n");
-	for(i=0; i<4; i++) {
-		leds_out_write(0x55);
-		busy_wait(200);
-		leds_out_write(0xaa);
-		busy_wait(200);
-	}
-}
-#endif
-
-extern void donut(void);
-
-static void donut_cmd(void)
-{
-	printf("Donut demo...\n");
-	donut();
-}
-
-extern void helloc(void);
-
-static void helloc_cmd(void)
-{
-	printf("Hello C demo...\n");
-	helloc();
-}
-
-#ifdef WITH_CXX
-extern void hellocpp(void);
-
-static void hellocpp_cmd(void)
-{
-	printf("Hello C++ demo...\n");
-	hellocpp();
-}
-#endif
-
-/*-----------------------------------------------------------------------*/
-/* Console service / Main                                                */
-/*-----------------------------------------------------------------------*/
-
-static void console_service(void)
-{
-	char *str;
-	char *token;
-
-	str = readstr();
-	if(str == NULL) return;
-	token = get_token(&str);
-	if(strcmp(token, "help") == 0)
-		help();
-	else if(strcmp(token, "reboot") == 0)
-		reboot_cmd();
-#ifdef CSR_LEDS_BASE
-	else if(strcmp(token, "led") == 0)
-		led_cmd();
-#endif
-	else if(strcmp(token, "donut") == 0)
-		donut_cmd();
-	else if(strcmp(token, "helloc") == 0)
-		helloc_cmd();
-#ifdef WITH_CXX
-	else if(strcmp(token, "hellocpp") == 0)
-		hellocpp_cmd();
-#endif
-	prompt();
+    printf("\nTempo decorrido: %d segundos\n", segundos);
+    
+    leds_out_write(0x00);
+    puts("\nFim teste\n");
 }
 
 int main(void)
 {
+	
 #ifdef CONFIG_CPU_HAS_INTERRUPT
 	irq_setmask(0);
 	irq_setie(1);
 #endif
 	uart_init();
-
-	help();
-	prompt();
-
-	while(1) {
-		console_service();
-	}
+	teste_exec();
 
 	return 0;
 }
