@@ -17,7 +17,7 @@ from litex.soc.cores.clock.gowin_gw1n import GW1NPLL
 from litex.soc.integration.soc_core import *
 from litex.soc.integration.soc import SoCRegion
 from litex.soc.integration.builder import *
-from litex.soc.cores.led import LedChaser
+from litex.soc.cores.gpio import *
 from litex.soc.cores.video import *
 
 from litex.soc.cores.hyperbus import HyperRAM
@@ -69,22 +69,9 @@ class BaseSoC(SoCCore):
         self.crg = _CRG(platform, sys_clk_freq, with_video_pll=with_video_terminal)
 
         # SoCCore ----------------------------------------------------------------------------------
-        # Disable Integrated ROM
-        kwargs["integrated_rom_size"] = 0
+        kwargs["integrated_rom_size"] = 128*1024
+        kwargs["integrated_ram_size"] = 8*1024
         SoCCore.__init__(self, platform, sys_clk_freq, ident="LiteX SoC on Tang Nano 9K", **kwargs)
-
-        # SPI Flash --------------------------------------------------------------------------------
-        from litespi.modules import W25Q32
-        from litespi.opcodes import SpiNorFlashOpCodes as Codes
-        self.add_spi_flash(mode="1x", module=W25Q32(Codes.READ_1_1_1), with_master=False)
-
-        # Add ROM linker region --------------------------------------------------------------------
-        self.bus.add_region("rom", SoCRegion(
-            origin = self.bus.regions["spiflash"].origin + bios_flash_offset,
-            size   = 64 * KILOBYTE,
-            linker = True)
-        )
-        self.cpu.set_reset_address(self.bus.regions["rom"].origin)
 
         # HyperRAM ---------------------------------------------------------------------------------
         if not self.integrated_main_ram_size:
@@ -121,12 +108,9 @@ class BaseSoC(SoCCore):
             #self.add_video_terminal(phy=self.videophy, timings="640x480@75Hz", clock_domain="hdmi") # FIXME: Free up BRAMs.
 
 
-        # Leds -------------------------------------------------------------------------------------
-        if with_led_chaser:
-            self.leds = LedChaser(
-                pads         = platform.request_all("user_led"),
-                sys_clk_freq = sys_clk_freq)
-
+        self.leds = GPIOOut(platform.request_all("user_led"))
+        self.gpio = GPIOIn(platform.request("user_btn", 1))
+        self.add_csr("gpio")
 # Build --------------------------------------------------------------------------------------------
 
 def main():
