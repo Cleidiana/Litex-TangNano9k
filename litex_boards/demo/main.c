@@ -11,6 +11,8 @@
 #include <generated/csr.h>
 
 #define CLOCK_FREQUENCY 27000000  // 27 MHz
+#define QUANT_REP       50000
+
 volatile uint32_t botao_user = 0;
 
 static void teste_exec(void)
@@ -35,7 +37,7 @@ static void teste_exec(void)
     timer0_update_value_write(1);
     tempo_inicio = timer0_value_read();
 
-    for (i = 0; i < 20000; i++) {
+    for (i = 0; i < QUANT_REP; i++) {
         printf("%ld ", i); 
     }
     timer0_update_value_write(1);
